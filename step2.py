@@ -1,4 +1,6 @@
+
 import re
+import subprocess
 from datetime import datetime, timedelta
 from collections import defaultdict
 
@@ -6,6 +8,7 @@ THRESHOLD = 5
 WINDOW = 60
 
 failed = defaultdict(list)
+blocked_ips = set()
 
 with open("/var/log/auth.log","r") as f:
     for line in f:
@@ -20,5 +23,8 @@ with open("/var/log/auth.log","r") as f:
                 failed[ip] = [t for t in failed[ip] if t > cutoff]
 
                 count = len(failed[ip])
-                if count >= THRESHOLD:
+                if count >= THRESHOLD and ip not in blocked_ips:
                     print(f"ALERT: {ip} has {count} failed attempts in {WINDOW}s!")
+                    subprocess.run(["sudo", "iptables", "-A", "INPUT", "-s", ip, "-j", "DROP"])
+                    blocked_ips.add(ip)
+                    print(f"Blocked: {ip} added to firewall.")
