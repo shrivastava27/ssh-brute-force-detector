@@ -1,19 +1,24 @@
 import re
+from datetime import datetime, timedelta
+from collections import defaultdict
 
-failed = {}
+THRESHOLD = 5
+WINDOW = 60
 
-with open("/var/log/auth.log", "r") as f:
+failed = defaultdict(list)
+
+with open("/var/log/auth.log","r") as f:
     for line in f:
         if "Failed password" in line:
             match = re.search(r"from (\d+\.\d+\.\d+\.\d+)", line)
             if match:
                 ip = match.group(1)
-                if ip in failed:
-                    failed[ip] += 1
-                else:
-                    failed[ip] = 1
+                now = datetime.now()
+                failed[ip].append(now)
 
-for ip,count in failed.items():
-    print(f"{ip} -> {count} failed attempts")
-    if count>=5:
-        print(f"alert: Brute force detected from {ip}!")
+                cutoff = now - timedelta(seconds=WINDOW)
+                failed[ip] = [t for t in failed[ip] if t > cutoff]
+
+                count = len(failed[ip])
+                if count >= THRESHOLD:
+                    print(f"ALERT: {ip} has {count} failed attempts in {WINDOW}s!")
